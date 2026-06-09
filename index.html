@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Finanzas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#1A2421;
+    --paper:#F4F1EA;
+    --surface:#FFFFFF;
+    --accent:#1D7A66;
+    --accent-dark:#0F5346;
+    --muted:#6B736F;
+    --line:rgba(26,36,33,.12);
+    --line-strong:rgba(26,36,33,.22);
+    --danger:#B23B3B;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Inter",system-ui,-apple-system,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---- Login ---- */
+  .card{
+    width:100%;
+    max-width:380px;
+    background:var(--surface);
+    border:.5px solid var(--line);
+    border-radius:var(--radius);
+    padding:36px 32px 32px;
+  }
+  .eyebrow{
+    font-size:12px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--accent);
+    font-weight:600;
+    margin-bottom:14px;
+  }
+  .wordmark{
+    font-family:"Fraunces",Georgia,serif;
+    font-size:34px;
+    font-weight:500;
+    line-height:1.05;
+    letter-spacing:-.01em;
+    margin-bottom:6px;
+  }
+  .subtitle{
+    font-size:14px;
+    color:var(--muted);
+    margin-bottom:28px;
+  }
+  label{
+    display:block;
+    font-size:13px;
+    font-weight:500;
+    margin-bottom:8px;
+  }
+  .field{position:relative}
+  input[type="password"],input[type="text"]{
+    width:100%;
+    height:46px;
+    padding:0 44px 0 14px;
+    font-size:15px;
+    font-family:inherit;
+    color:var(--ink);
+    background:var(--paper);
+    border:1px solid var(--line-strong);
+    border-radius:10px;
+    outline:none;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  input:focus{
+    border-color:var(--accent);
+    box-shadow:0 0 0 3px rgba(29,122,102,.16);
+  }
+  .toggle{
+    position:absolute;
+    right:6px;top:50%;
+    transform:translateY(-50%);
+    width:auto;min-width:36px;height:36px;padding:0 8px;
+    border:none;background:none;
+    color:var(--muted);
+    cursor:pointer;
+    font-size:13px;font-weight:500;
+    border-radius:8px;
+  }
+  .toggle:hover{color:var(--ink)}
+  button.primary{
+    width:100%;
+    height:46px;
+    margin-top:20px;
+    font-family:inherit;
+    font-size:15px;
+    font-weight:600;
+    color:#fff;
+    background:var(--accent);
+    border:none;
+    border-radius:10px;
+    cursor:pointer;
+    transition:background .15s, transform .05s;
+  }
+  button.primary:hover{background:var(--accent-dark)}
+  button.primary:active{transform:scale(.99)}
+  button.primary:disabled{opacity:.6;cursor:default}
+  .status{
+    min-height:20px;
+    margin-top:16px;
+    font-size:13px;
+    text-align:center;
+  }
+  .status.error{color:var(--danger)}
+  .status.loading{color:var(--muted)}
+
+  /* ---- Panel (placeholder tras login) ---- */
+  .panel{
+    width:100%;
+    max-width:540px;
+    background:var(--surface);
+    border:.5px solid var(--line);
+    border-radius:var(--radius);
+    padding:36px 32px;
+  }
+  .panel .check{
+    width:48px;height:48px;
+    border-radius:50%;
+    background:rgba(29,122,102,.12);
+    color:var(--accent);
+    display:flex;align-items:center;justify-content:center;
+    font-size:24px;font-weight:600;
+    margin-bottom:20px;
+  }
+  .panel h1{
+    font-family:"Fraunces",Georgia,serif;
+    font-size:26px;font-weight:500;
+    margin-bottom:8px;
+  }
+  .panel p{font-size:14px;color:var(--muted);margin-bottom:6px}
+  .panel .meta{
+    margin-top:22px;padding-top:18px;
+    border-top:.5px solid var(--line);
+    font-size:13px;color:var(--muted);
+  }
+  .panel .meta code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    background:var(--paper);
+    padding:2px 6px;border-radius:6px;
+    color:var(--ink);
+  }
+  button.ghost{
+    margin-top:24px;
+    height:40px;padding:0 18px;
+    font-family:inherit;font-size:14px;font-weight:500;
+    color:var(--ink);
+    background:transparent;
+    border:1px solid var(--line-strong);
+    border-radius:10px;cursor:pointer;
+  }
+  button.ghost:hover{background:var(--paper)}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+
+  <!-- ===== Pantalla de login ===== -->
+  <section class="card" id="login">
+    <div class="eyebrow">Panel privado</div>
+    <div class="wordmark">Finanzas</div>
+    <div class="subtitle">Escribe tu frase de acceso para continuar.</div>
+
+    <label for="clave">Frase de acceso</label>
+    <div class="field">
+      <input type="password" id="clave" autocomplete="off" spellcheck="false" placeholder="••••••••••••" />
+      <button class="toggle" id="toggle" type="button" aria-label="Mostrar u ocultar la frase">Ver</button>
+    </div>
+
+    <button class="primary" id="btnEntrar">Entrar</button>
+    <div class="status" id="status"></div>
+  </section>
+
+  <!-- ===== Panel tras autenticar (placeholder de Fase 1) ===== -->
+  <section class="panel hidden" id="panel">
+    <div class="check">&check;</div>
+    <h1>Conexión verificada</h1>
+    <p id="panelMsg">Autenticado correctamente.</p>
+    <p>El candado funciona: el servidor solo respondió porque la frase era correcta.</p>
+    <div class="meta">
+      Aquí van a vivir los tabs <code>Finanzas</code>, <code>Posición</code> e <code>Ingresos</code>. Los construimos en la siguiente fase.
+    </div>
+    <button class="ghost" id="btnSalir">Salir</button>
+  </section>
+
+<script>
+  // ===== Configuración =====
+  // La URL del endpoint NO es secreta: sin la frase correcta, no devuelve datos.
+  // La frase NUNCA se escribe aquí: la teclea el usuario y vive solo en memoria.
+  const ENDPOINT = "https://script.google.com/macros/s/AKfycbwR9QnCagqVkxsLkg_ntojXqd9FLDzbvmtCp1htATCTRvxyZ19W1BphkEXzdz_MOJwa/exec";
+
+  let claveEnMemoria = null; // se borra al recargar la pagina
+
+  const $ = (id) => document.getElementById(id);
+  const inputClave = $("clave");
+  const status = $("status");
+
+  function setStatus(texto, tipo){
+    status.textContent = texto || "";
+    status.className = "status" + (tipo ? " " + tipo : "");
+  }
+
+  // Mostrar / ocultar frase
+  $("toggle").addEventListener("click", () => {
+    const ver = inputClave.type === "password";
+    inputClave.type = ver ? "text" : "password";
+    $("toggle").textContent = ver ? "Ocultar" : "Ver";
+    inputClave.focus();
+  });
+
+  async function entrar(){
+    const frase = inputClave.value.trim();
+    if(!frase){ setStatus("Escribe tu frase de acceso.", "error"); inputClave.focus(); return; }
+
+    $("btnEntrar").disabled = true;
+    setStatus("Verificando...", "loading");
+
+    try{
+      // Content-Type text/plain evita el preflight CORS que Apps Script no maneja.
+      const resp = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ clave: frase })
+      });
+      const data = await resp.json();
+
+      if(data && data.ok){
+        claveEnMemoria = frase;           // se reutiliza para los re-fetch de datos (fase siguiente)
+        $("panelMsg").textContent = data.mensaje || "Autenticado correctamente.";
+        $("login").classList.add("hidden");
+        $("panel").classList.remove("hidden");
+      } else {
+        setStatus("Frase incorrecta. Intenta de nuevo.", "error");
+      }
+    } catch(err){
+      setStatus("No se pudo conectar. Revisa que la URL del endpoint sea correcta.", "error");
+    } finally {
+      $("btnEntrar").disabled = false;
+    }
+  }
+
+  function salir(){
+    claveEnMemoria = null;
+    inputClave.value = "";
+    setStatus("", "");
+    $("panel").classList.add("hidden");
+    $("login").classList.remove("hidden");
+    inputClave.focus();
+  }
+
+  $("btnEntrar").addEventListener("click", entrar);
+  inputClave.addEventListener("keydown", (e) => { if(e.key === "Enter") entrar(); });
+  $("btnSalir").addEventListener("click", salir);
+</script>
+</body>
+</html>
