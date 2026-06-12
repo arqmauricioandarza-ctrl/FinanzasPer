@@ -112,6 +112,22 @@
   .empty{font-size:13px;color:var(--muted);padding:8px 0}
   .hidden{display:none}
 
+  .addbtn{height:38px;padding:0 14px;font-family:inherit;font-size:14px;font-weight:600;color:#fff;background:var(--accent);border:none;border-radius:9px;cursor:pointer}
+  .addbtn:hover{opacity:.92}
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+  .modal{width:100%;max-width:420px;background:var(--card);border:1px solid var(--border-2);border-radius:var(--radius);padding:24px;max-height:92vh;overflow:auto}
+  .modal h3{font-size:18px;font-weight:700;margin-bottom:18px}
+  .form-row{margin-bottom:13px}
+  .form-row label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+  .form-row input,.form-row select{width:100%;height:42px;padding:0 12px;font-size:14px;font-family:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border-2);border-radius:9px;outline:none}
+  .form-row input:focus,.form-row select:focus{border-color:var(--accent)}
+  .form-row select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238B8B90' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+  .modal-status{min-height:18px;font-size:13px;margin:6px 0 2px}
+  .modal-status.error{color:var(--red)}.modal-status.ok{color:var(--green)}.modal-status.loading{color:var(--muted)}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
+  .modal-actions button{height:42px;border-radius:9px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer}
+  .btn-cancel{padding:0 16px;background:var(--surface);color:var(--text);border:1px solid var(--border-2)}
+  .btn-save{padding:0 22px;background:var(--accent);color:#fff;border:none}
   @media(max-width:760px){
     .app{flex-direction:column}
     .side{width:100%;flex-direction:row;align-items:center;gap:6px;border-right:none;border-bottom:1px solid var(--border);padding:12px;overflow-x:auto}
@@ -159,7 +175,7 @@
       <section id="view-gastos">
         <div class="topbar">
           <div><h1>Gastos del mes</h1><div class="sub" id="subMes"></div></div>
-          <div class="controls"><select id="selMes"></select></div>
+          <div class="controls"><select id="selMes"></select><button class="addbtn" id="btnAgregar">+ Agregar</button></div>
         </div>
         <div class="kpis" id="kpis"></div>
         <div class="grid2">
@@ -200,6 +216,26 @@
       </section>
 
     </main>
+
+    <!-- MODAL AGREGAR -->
+    <div class="modal-bg hidden" id="modalBg">
+      <div class="modal">
+        <h3>Agregar movimiento</h3>
+        <div class="form-row"><label>Tipo</label><select id="fTipo"><option value="Gasto">Gasto</option><option value="Ingreso">Ingreso</option><option value="Pago">Pago de tarjeta</option></select></div>
+        <div class="form-row"><label>Fecha</label><input type="date" id="fFecha" /></div>
+        <div class="form-row"><label>Monto</label><input type="number" id="fMonto" inputmode="decimal" placeholder="0" /></div>
+        <div class="form-row" id="rowCat"><label>Categoría</label><select id="fCat"></select></div>
+        <div class="form-row"><label id="lblDetalle">Comercio</label><input type="text" id="fComercio" placeholder="Ej. Oxxo" /></div>
+        <div class="form-row"><label>Cuenta / Tarjeta</label><select id="fCuenta"></select></div>
+        <div class="form-row hidden" id="rowOrigen"><label>Origen (de dónde sale el dinero)</label><select id="fOrigen"></select></div>
+        <div class="form-row"><label>Nota (opcional)</label><input type="text" id="fNota" /></div>
+        <div class="modal-status" id="fStatus"></div>
+        <div class="modal-actions">
+          <button class="btn-cancel" id="fCancel">Cancelar</button>
+          <button class="btn-save" id="fGuardar">Guardar</button>
+        </div>
+      </div>
+    </div>
   </div>
 
 <script>
@@ -426,6 +462,36 @@
   async function recargar(){if(!claveEnMemoria)return;const b=$('btnRecargar');b.textContent='...';try{const data=await pedirDatos(claveEnMemoria);if(data&&data.ok){DATOS=data.hojas||{};renderTodo();}}catch(err){}b.textContent='Actualizar';}
   function salir(){claveEnMemoria=null;DATOS=null;MES_SEL=null;$('clave').value='';setStatus('','');$('app').classList.add('hidden');$('login').classList.remove('hidden');}
 
+  // ===== Agregar movimiento =====
+  function opciones(sel,items,ph){ sel.innerHTML=''; if(ph){const o=document.createElement('option');o.value='';o.textContent=ph;sel.appendChild(o);} items.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);}); }
+  function listaCuentas(){ const t=getTarjetas().map(x=>x.nombre); ['Transferencia'].forEach(x=>{if(t.indexOf(x)===-1)t.push(x);}); return t; }
+  function listaCategorias(){ const h=DATOS.Categorias; if(!h||h.length<2)return[]; return filas(h).map(r=>norm(r[0])).filter(Boolean); }
+  function listaLugares(){ return getPatrimonio().rows.map(p=>p.lugar); }
+  function setFStatus(t,c){ const e=$('fStatus'); e.textContent=t||''; e.className='modal-status'+(c?' '+c:''); }
+  function ajustarFormulario(){ const esPago=$('fTipo').value==='Pago'; $('rowOrigen').classList.toggle('hidden',!esPago); $('rowCat').classList.toggle('hidden',esPago); $('lblDetalle').textContent=esPago?'Concepto':'Comercio'; }
+  function abrirModal(){
+    opciones($('fCat'),listaCategorias(),'—'); opciones($('fCuenta'),listaCuentas(),'—'); opciones($('fOrigen'),listaLugares(),'—');
+    $('fFecha').value=new Date().toISOString().slice(0,10); $('fMonto').value=''; $('fComercio').value=''; $('fNota').value=''; $('fTipo').value='Gasto';
+    ajustarFormulario(); setFStatus('',''); $('modalBg').classList.remove('hidden');
+  }
+  function cerrarModal(){ $('modalBg').classList.add('hidden'); }
+  async function guardar(){
+    const tipo=$('fTipo').value, fecha=$('fFecha').value, monto=parseFloat($('fMonto').value), cuenta=$('fCuenta').value, cat=$('fCat').value, origen=$('fOrigen').value;
+    if(!fecha){ setFStatus('Pon la fecha.','error'); return; }
+    if(!(monto>0)){ setFStatus('Pon un monto válido.','error'); return; }
+    if(!cuenta){ setFStatus(tipo==='Pago'?'Elige qué tarjeta pagaste.':'Elige la cuenta o tarjeta.','error'); return; }
+    if(tipo==='Pago' && !origen){ setFStatus('Elige de dónde salió el dinero.','error'); return; }
+    const fila={ Fecha:fecha, Mes:fecha.slice(0,7), Tipo:tipo, Categoria:(tipo==='Pago'?'':cat), Comercio:$('fComercio').value.trim(), Monto:monto, 'Cuenta/Tarjeta':cuenta, MSI:'', Nota:$('fNota').value.trim(), Origen:(tipo==='Pago'?origen:'') };
+    $('fGuardar').disabled=true; setFStatus('Guardando...','loading');
+    try{
+      const r=await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({clave:claveEnMemoria,accion:'agregar',fila:fila})});
+      const data=await r.json();
+      if(data&&data.ok){ setFStatus('Guardado','ok'); await recargar(); setTimeout(cerrarModal,500); }
+      else setFStatus('No se pudo guardar. ¿Ya redesplegaste el Apps Script?','error');
+    }catch(err){ setFStatus('No se pudo conectar.','error'); }
+    finally{ $('fGuardar').disabled=false; }
+  }
+
   $('toggle').addEventListener('click',()=>{const i=$('clave');const v=i.type==='password';i.type=v?'text':'password';$('toggle').textContent=v?'Ocultar':'Ver';i.focus();});
   $('btnEntrar').addEventListener('click',entrar);
   $('clave').addEventListener('keydown',e=>{if(e.key==='Enter')entrar();});
@@ -433,6 +499,11 @@
   $('btnRecargar').addEventListener('click',recargar);
   $('selMes').addEventListener('change',e=>{MES_SEL=e.target.value;renderGastos();});
   document.querySelectorAll('.nav[data-view]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
+  $('btnAgregar').addEventListener('click',abrirModal);
+  $('fCancel').addEventListener('click',cerrarModal);
+  $('fGuardar').addEventListener('click',guardar);
+  $('fTipo').addEventListener('change',ajustarFormulario);
+  $('modalBg').addEventListener('click',e=>{ if(e.target===$('modalBg')) cerrarModal(); });
 </script>
 </body>
 </html>
