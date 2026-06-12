@@ -464,9 +464,10 @@
 
   // ===== Agregar movimiento =====
   function opciones(sel,items,ph){ sel.innerHTML=''; if(ph){const o=document.createElement('option');o.value='';o.textContent=ph;sel.appendChild(o);} items.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);}); }
-  function listaCuentas(){ const t=getTarjetas().map(x=>x.nombre); ['Transferencia'].forEach(x=>{if(t.indexOf(x)===-1)t.push(x);}); return t; }
-  function listaCategorias(){ const h=DATOS.Categorias; if(!h||h.length<2)return[]; return filas(h).map(r=>norm(r[0])).filter(Boolean); }
-  function listaLugares(){ return getPatrimonio().rows.map(p=>p.lugar); }
+  function distinct(arr){ const o=[]; arr.forEach(v=>{ if(v && o.indexOf(v)===-1) o.push(v); }); return o; }
+  function listaCuentas(){ let t=getTarjetas().map(x=>x.nombre).filter(Boolean); if(!t.length)t=['BBVA','BBVA debito','Banamex','AMEX','Santander Azul','Efectivo']; ['Transferencia'].forEach(x=>{if(t.indexOf(x)===-1)t.push(x);}); return t; }
+  function listaCategorias(){ const h=DATOS&&DATOS.Categorias; let c=(h&&h.length>1)?filas(h).map(r=>norm(r[0])).filter(Boolean):[]; if(!c.length)c=distinct(getMovs().filter(m=>esTipo(m,'gasto')).map(m=>m.cat)); return c; }
+  function listaLugares(){ let l=getPatrimonio().rows.map(p=>p.lugar).filter(Boolean); if(!l.length)l=['Efectivo Caja Fuerte','BBVA Personal','Ledger','Binance','Vector','Finamex']; return l; }
   function setFStatus(t,c){ const e=$('fStatus'); e.textContent=t||''; e.className='modal-status'+(c?' '+c:''); }
   function ajustarFormulario(){ const esPago=$('fTipo').value==='Pago'; $('rowOrigen').classList.toggle('hidden',!esPago); $('rowCat').classList.toggle('hidden',esPago); $('lblDetalle').textContent=esPago?'Concepto':'Comercio'; }
   function abrirModal(){
