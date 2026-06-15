@@ -302,8 +302,9 @@
   const gastoTarjetaMes=(card,ym)=>getMovs().filter(m=>esTipo(m,'gasto')&&m.cuenta===card&&m.mes===ym).reduce((a,m)=>a+m.monto,0);
   function mesActual(){const t=totalesPorMes();if(t.length)return t[t.length-1].ym;const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
   function diasParaPago(dia){const d=parseInt(dia,10);if(!d||d<1||d>31)return null;const hoy=new Date();hoy.setHours(0,0,0,0);let t=new Date(hoy.getFullYear(),hoy.getMonth(),d);if(t<hoy)t=new Date(hoy.getFullYear(),hoy.getMonth()+1,d);return Math.round((t-hoy)/86400000);}
-  function fechaCorta(s){if(!s)return'—';const d=new Date(s);if(isNaN(d))return'—';return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short'});}
-  function fechaOrden(s){const d=new Date(s);return isNaN(d)?0:d.getTime();}
+  function parseFechaLocal(s){ if(!s)return null; const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s)); if(m)return new Date(+m[1],+m[2]-1,+m[3]); const d=new Date(s); return isNaN(d)?null:d; }
+  function fechaCorta(s){ const d=parseFechaLocal(s); return d?d.toLocaleDateString('es-MX',{day:'2-digit',month:'short'}):'—'; }
+  function fechaOrden(s){ const d=parseFechaLocal(s); return d?d.getTime():0; }
 
   // ===== GASTOS =====
   function renderGastos(){
@@ -500,8 +501,9 @@
     try{
       const r=await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({clave:claveEnMemoria,accion:'agregar',fila:fila})});
       const data=await r.json();
-      if(data&&data.ok){ setFStatus('Guardado','ok'); await recargar(); setTimeout(cerrarModal,500); }
-      else setFStatus('No se pudo guardar. ¿Ya redesplegaste el Apps Script?','error');
+      if(data&&data.agregado){ setFStatus('Guardado','ok'); await recargar(); setTimeout(cerrarModal,500); }
+      else if(data&&data.ok){ setFStatus('El servidor respondió pero NO escribió. Falta redesplegar el Apps Script como versión nueva.','error'); }
+      else setFStatus('No se pudo guardar (¿frase correcta?).','error');
     }catch(err){ setFStatus('No se pudo conectar.','error'); }
     finally{ $('fGuardar').disabled=false; }
   }
