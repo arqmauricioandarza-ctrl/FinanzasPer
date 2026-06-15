@@ -445,7 +445,12 @@
     if(!MES_SEL||meses.indexOf(MES_SEL)===-1)MES_SEL=meses[0]||'';
     sel.value=MES_SEL;
   }
-  function renderTodo(){poblarSelector();renderGastos();renderResumen();renderPatrimonio();renderInversion();}
+  function renderTodo(){
+    try{ poblarSelector(); }catch(e){ console.error('Error en poblarSelector:',e); }
+    [renderGastos,renderResumen,renderPatrimonio,renderInversion].forEach(function(fn){
+      try{ fn(); }catch(e){ console.error('Error en '+fn.name+':',e); }
+    });
+  }
   function showView(v){['gastos','resumen','patrimonio','inversion'].forEach(n=>$('view-'+n).classList.toggle('hidden',n!==v));document.querySelectorAll('.nav[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));}
 
   function setStatus(t,tipo){$('status').textContent=t||'';$('status').className='status'+(tipo?' '+tipo:'');}
@@ -453,11 +458,19 @@
   async function entrar(){
     const frase=$('clave').value.trim();if(!frase){setStatus('Escribe tu frase de acceso.','error');return;}
     $('btnEntrar').disabled=true;setStatus('Verificando y leyendo tus datos...','loading');
-    try{const data=await pedirDatos(frase);
-      if(data&&data.ok){claveEnMemoria=frase;DATOS=data.hojas||{};renderTodo();showView('gastos');$('login').classList.add('hidden');$('app').classList.remove('hidden');}
-      else setStatus('Frase incorrecta. Intenta de nuevo.','error');
-    }catch(err){setStatus('No se pudo conectar con el servidor.','error');}
-    finally{$('btnEntrar').disabled=false;}
+    let data;
+    try{ data=await pedirDatos(frase); }
+    catch(err){ console.error('Error de red:',err); setStatus('No se pudo conectar con el servidor.','error'); $('btnEntrar').disabled=false; return; }
+    if(!data||!data.ok){ setStatus('Frase incorrecta. Intenta de nuevo.','error'); $('btnEntrar').disabled=false; return; }
+    try{
+      claveEnMemoria=frase; DATOS=data.hojas||{};
+      renderTodo(); showView('gastos');
+      $('login').classList.add('hidden'); $('app').classList.remove('hidden');
+    }catch(err){
+      console.error('Error al dibujar el dashboard:',err);
+      setStatus('Los datos llegaron bien, pero hubo un error al mostrarlos. Abre la consola para ver el detalle.','error');
+    }
+    $('btnEntrar').disabled=false;
   }
   async function recargar(){if(!claveEnMemoria)return;const b=$('btnRecargar');b.textContent='...';try{const data=await pedirDatos(claveEnMemoria);if(data&&data.ok){DATOS=data.hojas||{};renderTodo();}}catch(err){}b.textContent='Actualizar';}
   function salir(){claveEnMemoria=null;DATOS=null;MES_SEL=null;$('clave').value='';setStatus('','');$('app').classList.add('hidden');$('login').classList.remove('hidden');}
