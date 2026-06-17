@@ -274,6 +274,8 @@
 
   function pagosTarjeta(card,since){const st=tparse(since);return getMovs().filter(m=>esTipo(m,'pago')&&m.cuenta===card).filter(m=>{if(st===null)return true;const ft=tparse(m.fecha);return ft===null?true:ft>st;}).reduce((a,m)=>a+m.monto,0);}
   function pagosOrigen(lugar,since){const st=tparse(since);return getMovs().filter(m=>esTipo(m,'pago')&&m.origen===lugar).filter(m=>{if(st===null)return true;const ft=tparse(m.fecha);return ft===null?true:ft>st;}).reduce((a,m)=>a+m.monto,0);}
+  function gastosTarjetaDespues(card,since){const st=tparse(since);if(st===null)return 0;return getMovs().filter(m=>esTipo(m,'gasto')&&m.cuenta===card).filter(m=>{const ft=tparse(m.fecha);return ft===null?false:ft>st;}).reduce((a,m)=>a+m.monto,0);}
+  function gastosEfectivoDespues(since){const st=tparse(since);if(st===null)return 0;return getMovs().filter(m=>esTipo(m,'gasto')&&/efectivo/i.test(m.cuenta)).filter(m=>{const ft=tparse(m.fecha);return ft===null?false:ft>st;}).reduce((a,m)=>a+m.monto,0);}
 
   function getTarjetas(){
     const h=DATOS.Tarjetas;if(!h||!h.length)return[];const c=idx(h);
@@ -282,14 +284,15 @@
       const ult=norm(r[c['Ultima actualizacion']]);
       const nombre=norm(r[c['Tarjeta']]);
       return {nombre,tipo:norm(r[c['Tipo']]),base,ult,diaPago:r[c['Dia de pago']],
-        ajustado:Math.max(0,base-pagosTarjeta(nombre,ult))};
+        ajustado:Math.max(0,base-pagosTarjeta(nombre,ult)+gastosTarjetaDespues(nombre,ult))};
     }).filter(t=>t.nombre);
   }
   function getPatrimonio(){
     const h=DATOS.Posicion;if(!h||!h.length)return{rows:[],total:0};const c=idx(h);
     const rows=filas(h).map(r=>{
       const lugar=norm(r[c['Lugar']]);const base=num(r[c['Monto actual']]);const ult=norm(r[c['Ultima actualizacion']]);
-      return {lugar,tipo:norm(r[c['Tipo']]),base,ult,ajustado:base-pagosOrigen(lugar,ult)};
+      let aj=base-pagosOrigen(lugar,ult); if(/efectivo|caja/i.test(lugar)) aj-=gastosEfectivoDespues(ult);
+      return {lugar,tipo:norm(r[c['Tipo']]),base,ult,ajustado:aj};
     }).filter(p=>p.lugar&&!/total/i.test(p.lugar));
     return {rows,total:rows.reduce((a,p)=>a+p.ajustado,0)};
   }
