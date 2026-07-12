@@ -128,6 +128,11 @@
   .modal-actions button{height:42px;border-radius:9px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer}
   .btn-cancel{padding:0 16px;background:var(--surface);color:var(--text);border:1px solid var(--border-2)}
   .btn-save{padding:0 22px;background:var(--accent);color:#fff;border:none}
+  .rango{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+  .rango label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:5px;font-weight:500}
+  .rango input[type=date]{height:38px;padding:0 10px;background:var(--bg);border:1px solid var(--border-2);border-radius:9px;color:var(--text);font-family:inherit;font-size:14px;color-scheme:dark}
+  .delta-up{color:#F0897F;font-weight:600}
+  .delta-down{color:#6FCFA1;font-weight:600}
   @media(max-width:760px){
     .app{flex-direction:column}
     .side{width:100%;flex-direction:row;align-items:center;gap:6px;border-right:none;border-bottom:1px solid var(--border);padding:12px;overflow-x:auto}
@@ -162,8 +167,10 @@
       <div class="brand">Finan<span>zas</span></div>
       <button class="nav active" data-view="gastos">Gastos del mes</button>
       <button class="nav" data-view="resumen">Resumen</button>
+      <button class="nav" data-view="analisis">Análisis</button>
       <button class="nav" data-view="patrimonio">Patrimonio</button>
       <button class="nav" data-view="inversion">Inversión</button>
+      <button class="nav" data-view="reporte">Reporte</button>
       <div class="spacer"></div>
       <button class="nav" id="btnRecargar">Actualizar</button>
       <button class="nav salir" id="btnSalir">Salir</button>
@@ -215,6 +222,41 @@
         <div class="footnote">Esto es solo el cálculo de tu flujo (gasto + meta de inversión = ingreso necesario). No es recomendación de inversión: en qué activo meterlo lo decides tú.</div>
       </section>
 
+      <!-- ANÁLISIS -->
+      <section id="view-analisis" class="hidden">
+        <div class="topbar"><div><h1>Análisis</h1><div class="sub" id="anaSub"></div></div></div>
+        <div id="anaAlertas"></div>
+        <div class="grid2">
+          <div class="panel"><h2>Cambios por categoría vs mes anterior</h2><div class="tbl-wrap"><table id="anaTabla"></table></div></div>
+          <div class="panel">
+            <h2>Gastos hormiga <span class="count" id="hormCount"></span></h2>
+            <div id="hormResumen"></div>
+            <div class="tbl-wrap"><table id="hormTabla"></table></div>
+          </div>
+        </div>
+        <div class="footnote">Gasto hormiga = movimientos menores a $500. Pocos pesos, muchas veces: ahí se va el dinero sin sentirlo.</div>
+      </section>
+
+      <!-- REPORTE -->
+      <section id="view-reporte" class="hidden">
+        <div class="topbar"><div><h1>Reporte</h1><div class="sub">Resumen descargable del periodo que elijas</div></div></div>
+        <div class="panel" style="margin-bottom:14px">
+          <div class="rango">
+            <label>Desde<input type="date" id="repD1"></label>
+            <label>Hasta<input type="date" id="repD2"></label>
+            <button class="addbtn" id="btnRepGen">Generar</button>
+            <button class="ghost" id="btnRepMov">Descargar movimientos (CSV)</button>
+            <button class="ghost" id="btnRepRes">Descargar resumen (CSV)</button>
+          </div>
+        </div>
+        <div class="kpis" id="repKpis"></div>
+        <div class="grid2">
+          <div class="panel"><h2>Por categoría</h2><div class="tbl-wrap"><table id="repCat"></table></div></div>
+          <div class="panel"><h2>Por cuenta / tarjeta</h2><div class="tbl-wrap"><table id="repCta"></table></div></div>
+        </div>
+        <div class="footnote">Los CSV abren directo en Excel o Google Sheets.</div>
+      </section>
+
     </main>
 
     <!-- MODAL AGREGAR -->
@@ -256,14 +298,14 @@
   function labelCorto(ym){const m=/^(\d{4})-(\d{2})$/.exec(ym);return m?MESC[+m[2]-1]:ym;}
   function idx(h){const o={};if(h&&h.length)h[0].forEach((c,i)=>o[norm(c)]=i);return o;}
   function filas(h){return(h&&h.length>1)?h.slice(1):[];}
-  const tparse=s=>{if(!s)return null;const d=new Date(s);return isNaN(d)?null:d.getTime();};
+  const tparse=s=>{const d=parseFechaLocal(s);return d?d.getTime():null;};
 
   function getMovs(){
     const h=DATOS.Movimientos;if(!h||!h.length)return[];const c=idx(h);
     return filas(h).map(r=>({
       fecha:norm(r[c['Fecha']]),mes:normMes(r[c['Mes']]),tipo:norm(r[c['Tipo']]),
       cat:norm(r[c['Categoria']])||'Sin categoría',comercio:norm(r[c['Comercio']]),
-      cuenta:norm(r[c['Cuenta/Tarjeta']]),monto:num(r[c['Monto']]),origen:norm(r[c['Origen']])
+      cuenta:norm(r[c['Cuenta/Tarjeta']]),monto:num(r[c['Monto']]),origen:norm(r[c['Origen']]),nota:norm(r[c['Nota']])
     }));
   }
   const esTipo=(m,t)=>m.tipo.toLowerCase()===t;
@@ -326,6 +368,9 @@
     if(pct!==null){const p=Math.min(100,Math.round(pct*100));const col=pct>=1?'var(--red)':(pct>=0.9?'var(--amber)':'var(--accent)');
       k.push(`<div class="kpi"><div class="k-label">Presupuesto usado</div><div class="k-val">${Math.round(pct*100)}%</div><div class="k-sub">${fmt.format(gasto)} de ${fmt.format(pres)}</div><div class="k-bar"><div style="width:${p}%;background:${col}"></div></div></div>`);
     } else k.push(`<div class="kpi"><div class="k-label">Presupuesto usado</div><div class="k-val" style="color:var(--muted)">—</div><div class="k-sub">Defínelo en Config</div></div>`);
+    if(pct!==null){ const rest=pres-gasto;
+      k.push(`<div class="kpi"><div class="k-label">Te queda del mes</div><div class="k-val" style="color:${rest>=0?'var(--green)':'var(--red)'}">${fmt.format(rest)}</div><div class="k-sub">para gastar sin pasarte</div></div>`);
+    }
     k.push(`<div class="kpi"><div class="k-label">Deuda en tarjetas</div><div class="k-val" style="color:var(--accent)">${fmt.format(deuda)}</div><div class="k-sub">después de tus pagos</div></div>`);
     k.push(`<div class="kpi"><div class="k-label">Categoría principal</div><div class="k-val" style="font-size:20px">${topCat?topCat[0]:'—'}</div><div class="k-sub">${topCat?fmt.format(topCat[1]):'sin gastos'}</div></div>`);
     $('kpis').innerHTML=k.join('');
@@ -442,6 +487,99 @@
     $('invDetalle').innerHTML=detalle;
   }
 
+  // ===== ANÁLISIS =====
+  const HORMIGA_UMBRAL=500;
+  function mesAnteriorDe(ym){const m=/^(\d{4})-(\d{2})$/.exec(ym);if(!m)return null;let y=+m[1],mm=+m[2]-1;if(mm===0){mm=12;y--;}return y+'-'+String(mm).padStart(2,'0');}
+  function gastosPorCat(ym){const o={};getMovs().filter(m=>esTipo(m,'gasto')&&m.mes===ym).forEach(m=>{o[m.cat]=(o[m.cat]||0)+m.monto;});return o;}
+  function renderAnalisis(){
+    const cur=MES_SEL||mesActual(); const prev=mesAnteriorDe(cur);
+    $('anaSub').textContent=labelMes(cur)+' comparado con '+(prev?labelMes(prev):'—');
+    const a=gastosPorCat(cur), b=prev?gastosPorCat(prev):{};
+    const cats=[...new Set([...Object.keys(a),...Object.keys(b)])];
+    const rows=cats.map(c=>({cat:c,cur:a[c]||0,prev:b[c]||0,delta:(a[c]||0)-(b[c]||0)})).sort((x,y)=>y.delta-x.delta);
+
+    const subidas=rows.filter(r=>r.delta>1000&&(r.prev===0||r.delta/Math.max(r.prev,1)>0.2)).slice(0,3);
+    $('anaAlertas').innerHTML = subidas.length
+      ? subidas.map(r=>`<div class="note">⚠ <b>${r.cat}</b> subió <b>${fmt.format(r.delta)}</b> vs el mes anterior (${fmt.format(r.prev)} → ${fmt.format(r.cur)}). Revísalo.</div>`).join('')
+      : `<div class="note">Sin aumentos fuertes contra el mes anterior.</div>`;
+
+    if(rows.length){
+      $('anaTabla').innerHTML=`<thead><tr><th>Categoría</th><th class="r">${prev?labelCorto(prev):'ant.'}</th><th class="r">${labelCorto(cur)}</th><th class="r">Cambio</th></tr></thead><tbody>`+
+        rows.map(r=>{
+          const cls=r.delta>0?'delta-up':(r.delta<0?'delta-down':'');
+          const flecha=r.delta>0?'▲ ':(r.delta<0?'▼ ':'');
+          return `<tr><td>${r.cat}</td><td class="r mono">${fmt.format(r.prev)}</td><td class="r mono">${fmt.format(r.cur)}</td><td class="r mono ${cls}">${flecha}${fmt.format(Math.abs(r.delta))}</td></tr>`;
+        }).join('')+`</tbody>`;
+    } else $('anaTabla').innerHTML=`<tbody><tr><td><div class="empty">Sin datos en este mes.</div></td></tr></tbody>`;
+
+    const horm=getMovs().filter(m=>esTipo(m,'gasto')&&m.mes===cur&&m.monto>0&&m.monto<HORMIGA_UMBRAL);
+    const tot=horm.reduce((s,m)=>s+m.monto,0);
+    const gt=gastoMes(cur);
+    $('hormCount').textContent=horm.length?`· ${horm.length}`:'';
+    $('hormResumen').innerHTML=`<div class="note">Este mes: <b>${horm.length}</b> gastos menores a $${HORMIGA_UMBRAL} que suman <b>${fmt.format(tot)}</b> (${gt>0?Math.round(tot/gt*100):0}% de tu gasto).</div>`;
+    const fre={};horm.forEach(m=>{const k=(m.comercio||'sin nombre').toLowerCase();if(!fre[k])fre[k]={n:0,t:0,nombre:m.comercio||'sin nombre'};fre[k].n++;fre[k].t+=m.monto;});
+    const top=Object.values(fre).filter(f=>f.n>=2).sort((x,y)=>y.t-x.t).slice(0,8);
+    $('hormTabla').innerHTML = top.length
+      ? `<thead><tr><th>Comercio</th><th class="r">Veces</th><th class="r">Total</th></tr></thead><tbody>`+
+        top.map(f=>`<tr><td>${f.nombre}</td><td class="r mono">${f.n}</td><td class="r mono">${fmt.format(f.t)}</td></tr>`).join('')+`</tbody>`
+      : `<tbody><tr><td><div class="empty">Sin comercios repetidos este mes.</div></td></tr></tbody>`;
+  }
+
+  // ===== REPORTE =====
+  function movsRango(){
+    const d1=parseFechaLocal($('repD1').value), d2=parseFechaLocal($('repD2').value);
+    if(!d1||!d2)return null;
+    const t1=d1.getTime(), t2=d2.getTime()+86399999;
+    return getMovs().filter(m=>{const t=fechaOrden(m.fecha);return t>=t1&&t<=t2;});
+  }
+  function renderReporte(){
+    const ms=movsRango();
+    if(!ms){ $('repKpis').innerHTML=`<div class="kpi"><div class="k-label">Elige las fechas</div><div class="k-val" style="color:var(--muted)">—</div><div class="k-sub">y dale Generar</div></div>`; $('repCat').innerHTML='';$('repCta').innerHTML=''; return; }
+    const g=ms.filter(m=>esTipo(m,'gasto')), i=ms.filter(m=>esTipo(m,'ingreso')), p=ms.filter(m=>esTipo(m,'pago'));
+    const tg=g.reduce((s,m)=>s+m.monto,0), ti=i.reduce((s,m)=>s+m.monto,0), tp=p.reduce((s,m)=>s+m.monto,0);
+    $('repKpis').innerHTML=
+      `<div class="kpi"><div class="k-label">Gastos</div><div class="k-val">${fmt.format(tg)}</div><div class="k-sub">${g.length} movimientos</div></div>`+
+      `<div class="kpi"><div class="k-label">Ingresos</div><div class="k-val" style="color:var(--green)">${fmt.format(ti)}</div><div class="k-sub">${i.length} movimientos</div></div>`+
+      `<div class="kpi"><div class="k-label">Balance</div><div class="k-val" style="color:${ti-tg>=0?'var(--green)':'var(--red)'}">${fmt.format(ti-tg)}</div><div class="k-sub">ingresos − gastos</div></div>`+
+      `<div class="kpi"><div class="k-label">Pagos de tarjeta</div><div class="k-val" style="color:var(--blue)">${fmt.format(tp)}</div><div class="k-sub">${p.length} pagos</div></div>`;
+    const pc={};g.forEach(m=>{pc[m.cat]=(pc[m.cat]||0)+m.monto;});
+    const catRows=Object.entries(pc).sort((x,y)=>y[1]-x[1]);
+    $('repCat').innerHTML=`<thead><tr><th>Categoría</th><th class="r">Total</th><th class="r">%</th></tr></thead><tbody>`+
+      catRows.map(([c,v])=>`<tr><td>${c}</td><td class="r mono">${fmt.format(v)}</td><td class="r mono">${tg>0?Math.round(v/tg*100):0}%</td></tr>`).join('')+`</tbody>`;
+    const pq={};g.forEach(m=>{const k=m.cuenta||'—';pq[k]=(pq[k]||0)+m.monto;});
+    $('repCta').innerHTML=`<thead><tr><th>Cuenta</th><th class="r">Total</th></tr></thead><tbody>`+
+      Object.entries(pq).sort((x,y)=>y[1]-x[1]).map(([c,v])=>`<tr><td>${c}</td><td class="r mono">${fmt.format(v)}</td></tr>`).join('')+`</tbody>`;
+  }
+  function descargarCSV(nombre,filasArr){
+    const csv='\ufeff'+filasArr.map(r=>r.map(v=>{v=(v==null?'':String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}).join(',')).join('\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(a.href);
+  }
+  function nombreRango(){return ($('repD1').value||'inicio')+'_a_'+($('repD2').value||'fin');}
+  function descargarMovimientos(){
+    const ms=movsRango(); if(!ms){renderReporte();return;}
+    const filasCSV=[['Fecha','Mes','Tipo','Categoria','Comercio','Cuenta/Tarjeta','Monto','Origen','Nota']];
+    ms.slice().sort((a,b)=>fechaOrden(a.fecha)-fechaOrden(b.fecha)).forEach(m=>filasCSV.push([m.fecha,m.mes,m.tipo,m.cat,m.comercio,m.cuenta,m.monto,m.origen,m.nota]));
+    descargarCSV('movimientos_'+nombreRango()+'.csv',filasCSV);
+  }
+  function descargarResumen(){
+    const ms=movsRango(); if(!ms){renderReporte();return;}
+    const g=ms.filter(m=>esTipo(m,'gasto')), i=ms.filter(m=>esTipo(m,'ingreso')), p=ms.filter(m=>esTipo(m,'pago'));
+    const tg=g.reduce((s,m)=>s+m.monto,0), ti=i.reduce((s,m)=>s+m.monto,0), tp=p.reduce((s,m)=>s+m.monto,0);
+    const pc={};g.forEach(m=>{pc[m.cat]=(pc[m.cat]||0)+m.monto;});
+    const filasCSV=[['RESUMEN',$('repD1').value+' a '+$('repD2').value],[],
+      ['Total gastos',tg],['Total ingresos',ti],['Balance',ti-tg],['Pagos de tarjeta',tp],[],
+      ['Categoria','Total','% del gasto']];
+    Object.entries(pc).sort((x,y)=>y[1]-x[1]).forEach(([c,v])=>filasCSV.push([c,v,tg>0?Math.round(v/tg*100)+'%':'0%']));
+    descargarCSV('resumen_'+nombreRango()+'.csv',filasCSV);
+  }
+  function initReporteFechas(){
+    if($('repD1').value)return;
+    const hoy=new Date();
+    $('repD1').value=hoy.getFullYear()+'-'+String(hoy.getMonth()+1).padStart(2,'0')+'-01';
+    $('repD2').value=hoy.getFullYear()+'-'+String(hoy.getMonth()+1).padStart(2,'0')+'-'+String(hoy.getDate()).padStart(2,'0');
+  }
+
   function poblarSelector(){
     const meses=[...new Set(getMovs().map(m=>m.mes).filter(x=>/^\d{4}-\d{2}$/.test(x)))].sort().reverse();
     const sel=$('selMes');sel.innerHTML='';
@@ -451,11 +589,12 @@
   }
   function renderTodo(){
     try{ poblarSelector(); }catch(e){ console.error('Error en poblarSelector:',e); }
-    [renderGastos,renderResumen,renderPatrimonio,renderInversion].forEach(function(fn){
+    try{ initReporteFechas(); }catch(e){ console.error('Error en initReporteFechas:',e); }
+    [renderGastos,renderResumen,renderPatrimonio,renderInversion,renderAnalisis,renderReporte].forEach(function(fn){
       try{ fn(); }catch(e){ console.error('Error en '+fn.name+':',e); }
     });
   }
-  function showView(v){['gastos','resumen','patrimonio','inversion'].forEach(n=>$('view-'+n).classList.toggle('hidden',n!==v));document.querySelectorAll('.nav[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));}
+  function showView(v){['gastos','resumen','patrimonio','inversion','analisis','reporte'].forEach(n=>$('view-'+n).classList.toggle('hidden',n!==v));document.querySelectorAll('.nav[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));}
 
   function setStatus(t,tipo){$('status').textContent=t||'';$('status').className='status'+(tipo?' '+tipo:'');}
   async function pedirDatos(frase){const r=await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({clave:frase})});return r.json();}
@@ -516,7 +655,10 @@
   $('clave').addEventListener('keydown',e=>{if(e.key==='Enter')entrar();});
   $('btnSalir').addEventListener('click',salir);
   $('btnRecargar').addEventListener('click',recargar);
-  $('selMes').addEventListener('change',e=>{MES_SEL=e.target.value;renderGastos();});
+  $('selMes').addEventListener('change',e=>{MES_SEL=e.target.value;renderGastos();try{renderAnalisis();}catch(err){}});
+  $('btnRepGen').addEventListener('click',renderReporte);
+  $('btnRepMov').addEventListener('click',descargarMovimientos);
+  $('btnRepRes').addEventListener('click',descargarResumen);
   document.querySelectorAll('.nav[data-view]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
   $('btnAgregar').addEventListener('click',abrirModal);
   $('fCancel').addEventListener('click',cerrarModal);
