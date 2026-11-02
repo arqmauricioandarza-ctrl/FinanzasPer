@@ -182,7 +182,7 @@
       <section id="view-gastos">
         <div class="topbar">
           <div><h1>Gastos del mes</h1><div class="sub" id="subMes"></div></div>
-          <div class="controls"><select id="selMes"></select><button class="addbtn" id="btnAgregar">+ Agregar</button></div>
+          <div class="controls"><select id="selMes"></select><button class="addbtn" id="btnAgregar">+ Registrar gasto</button></div>
         </div>
         <div class="kpis" id="kpis"></div>
         <div class="grid2">
@@ -262,10 +262,10 @@
     <!-- MODAL AGREGAR -->
     <div class="modal-bg hidden" id="modalBg">
       <div class="modal">
-        <h3>Agregar movimiento</h3>
+        <h3>Registrar movimiento</h3><p class="sub">Monto, concepto, categoría y cuenta. La fecha de hoy ya está lista.</p>
         <div class="form-row"><label>Tipo</label><select id="fTipo"><option value="Gasto">Gasto</option><option value="Ingreso">Ingreso</option><option value="Pago">Pago de tarjeta</option></select></div>
         <div class="form-row"><label>Fecha</label><input type="date" id="fFecha" /></div>
-        <div class="form-row"><label>Monto</label><input type="number" id="fMonto" inputmode="decimal" placeholder="0" /></div>
+        <div class="form-row"><label>Monto</label><input type="number" id="fMonto" min="0.01" step="0.01" inputmode="decimal" placeholder="0" /></div>
         <div class="form-row" id="rowCat"><label>Categoría</label><select id="fCat"></select></div>
         <div class="form-row"><label id="lblDetalle">Comercio</label><input type="text" id="fComercio" placeholder="Ej. Oxxo" /></div>
         <div class="form-row"><label>Cuenta / Tarjeta</label><select id="fCuenta"></select></div>
@@ -580,11 +580,12 @@
     $('repD2').value=hoy.getFullYear()+'-'+String(hoy.getMonth()+1).padStart(2,'0')+'-'+String(hoy.getDate()).padStart(2,'0');
   }
 
+  function fechaHoy(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
   function poblarSelector(){
-    const meses=[...new Set(getMovs().map(m=>m.mes).filter(x=>/^\d{4}-\d{2}$/.test(x)))].sort().reverse();
+    const meses=[...new Set([fechaHoy().slice(0,7),...getMovs().map(m=>m.mes).filter(x=>/^\d{4}-\d{2}$/.test(x))])].sort().reverse();
     const sel=$('selMes');sel.innerHTML='';
     meses.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=labelMes(m);sel.appendChild(o);});
-    if(!MES_SEL||meses.indexOf(MES_SEL)===-1)MES_SEL=meses[0]||'';
+    if(!MES_SEL||meses.indexOf(MES_SEL)===-1)MES_SEL=fechaHoy().slice(0,7);
     sel.value=MES_SEL;
   }
   function renderTodo(){
@@ -628,22 +629,25 @@
   function ajustarFormulario(){ const esPago=$('fTipo').value==='Pago'; $('rowOrigen').classList.toggle('hidden',!esPago); $('rowCat').classList.toggle('hidden',esPago); $('lblDetalle').textContent=esPago?'Concepto':'Comercio'; }
   function abrirModal(){
     opciones($('fCat'),listaCategorias(),'—'); opciones($('fCuenta'),listaCuentas(),'—'); opciones($('fOrigen'),listaLugares(),'—');
-    $('fFecha').value=new Date().toISOString().slice(0,10); $('fMonto').value=''; $('fComercio').value=''; $('fNota').value=''; $('fTipo').value='Gasto';
-    ajustarFormulario(); setFStatus('',''); $('modalBg').classList.remove('hidden');
+    $('fFecha').value=fechaHoy(); $('fMonto').value=''; $('fComercio').value=''; $('fNota').value=''; $('fTipo').value='Gasto';
+    ajustarFormulario(); setFStatus('',''); $('modalBg').classList.remove('hidden'); $('fMonto').focus();
   }
-  function cerrarModal(){ $('modalBg').classList.add('hidden'); }
+  function cerrarModal(){ if($('fGuardar').disabled)return; $('modalBg').classList.add('hidden'); }
   async function guardar(){
+    if($('fGuardar').disabled)return;
     const tipo=$('fTipo').value, fecha=$('fFecha').value, monto=parseFloat($('fMonto').value), cuenta=$('fCuenta').value, cat=$('fCat').value, origen=$('fOrigen').value;
     if(!fecha){ setFStatus('Pon la fecha.','error'); return; }
-    if(!(monto>0)){ setFStatus('Pon un monto válido.','error'); return; }
+    if(!Number.isFinite(monto)||!(monto>0)){ setFStatus('Pon un monto válido.','error'); return; }
     if(!cuenta){ setFStatus(tipo==='Pago'?'Elige qué tarjeta pagaste.':'Elige la cuenta o tarjeta.','error'); return; }
+    if(tipo==='Gasto' && !cat){ setFStatus('Elige la categoría.','error'); return; }
+    if(!$('fComercio').value.trim()){ setFStatus('Escribe el concepto del movimiento.','error'); return; }
     if(tipo==='Pago' && !origen){ setFStatus('Elige de dónde salió el dinero.','error'); return; }
     const fila={ Fecha:fecha, Mes:fecha.slice(0,7), Tipo:tipo, Categoria:(tipo==='Pago'?'':cat), Comercio:$('fComercio').value.trim(), Monto:monto, 'Cuenta/Tarjeta':cuenta, MSI:'', Nota:$('fNota').value.trim(), Origen:(tipo==='Pago'?origen:'') };
     $('fGuardar').disabled=true; setFStatus('Guardando...','loading');
     try{
       const r=await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({clave:claveEnMemoria,accion:'agregar',fila:fila})});
       const data=await r.json();
-      if(data&&data.agregado){ setFStatus('Guardado','ok'); await recargar(); setTimeout(cerrarModal,500); }
+      if(data&&data.agregado){ setFStatus('Guardado','ok'); MES_SEL=fecha.slice(0,7); await recargar(); setTimeout(cerrarModal,500); }
       else if(data&&data.ok){ setFStatus('El servidor respondió pero NO escribió. Falta redesplegar el Apps Script como versión nueva.','error'); }
       else setFStatus('No se pudo guardar (¿frase correcta?).','error');
     }catch(err){ setFStatus('No se pudo conectar.','error'); }
