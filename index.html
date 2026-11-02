@@ -211,7 +211,7 @@
           <div class="panel"><h2>Distribución</h2><div id="patDist"></div></div>
           <div class="panel"><h2>Detalle por lugar</h2><div id="patLista"></div></div>
         </div>
-        <div class="footnote">Los montos descuentan automáticamente los pagos de tarjeta que hagas desde cada lugar.</div>
+        <div class="footnote">Patrimonio actualizado manualmente: suma de los montos de la pestaña Posicion. Los gastos, ingresos y pagos registrados no modifican estos saldos.</div>
       </section>
 
       <!-- INVERSIÓN -->
@@ -315,9 +315,7 @@
   const getMetaInversion=()=>{const v=getConfigNum('meta de inversi',0);return v>0?v:META_INVERSION_DEFAULT;};
 
   function pagosTarjeta(card,since){const st=tparse(since);return getMovs().filter(m=>esTipo(m,'pago')&&m.cuenta===card).filter(m=>{if(st===null)return true;const ft=tparse(m.fecha);return ft===null?true:ft>st;}).reduce((a,m)=>a+m.monto,0);}
-  function pagosOrigen(lugar,since){const st=tparse(since);return getMovs().filter(m=>esTipo(m,'pago')&&m.origen===lugar).filter(m=>{if(st===null)return true;const ft=tparse(m.fecha);return ft===null?true:ft>st;}).reduce((a,m)=>a+m.monto,0);}
   function gastosTarjetaDespues(card,since){const st=tparse(since);if(st===null)return 0;return getMovs().filter(m=>esTipo(m,'gasto')&&m.cuenta===card).filter(m=>{const ft=tparse(m.fecha);return ft===null?false:ft>st;}).reduce((a,m)=>a+m.monto,0);}
-  function gastosEfectivoDespues(since){const st=tparse(since);if(st===null)return 0;return getMovs().filter(m=>esTipo(m,'gasto')&&/efectivo/i.test(m.cuenta)).filter(m=>{const ft=tparse(m.fecha);return ft===null?false:ft>st;}).reduce((a,m)=>a+m.monto,0);}
 
   function getTarjetas(){
     const h=DATOS.Tarjetas;if(!h||!h.length)return[];const c=idx(h);
@@ -333,8 +331,7 @@
     const h=DATOS.Posicion;if(!h||!h.length)return{rows:[],total:0};const c=idx(h);
     const rows=filas(h).map(r=>{
       const lugar=norm(r[c['Lugar']]);const base=num(r[c['Monto actual']]);const ult=norm(r[c['Ultima actualizacion']]);
-      let aj=base-pagosOrigen(lugar,ult); if(/efectivo|caja/i.test(lugar)) aj-=gastosEfectivoDespues(ult);
-      return {lugar,tipo:norm(r[c['Tipo']]),base,ult,ajustado:aj};
+      return {lugar,tipo:norm(r[c['Tipo']]),base,ult,ajustado:base};
     }).filter(p=>p.lugar&&!/total/i.test(p.lugar));
     return {rows,total:rows.reduce((a,p)=>a+p.ajustado,0)};
   }
