@@ -288,7 +288,7 @@
   const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   const MESC=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   const $=id=>document.getElementById(id);
-  const fmt=new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',maximumFractionDigits:0});
+  const fmt=new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',minimumFractionDigits:2,maximumFractionDigits:2});
   const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
   function fmtK(v){v=Math.round(v);return v>=1000?'$'+Math.round(v/1000)+'k':'$'+v;}
   const norm=v=>v==null?'':String(v).trim();
