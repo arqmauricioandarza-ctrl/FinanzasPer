@@ -169,7 +169,6 @@
       <button class="nav" data-view="resumen">Resumen</button>
       <button class="nav" data-view="analisis">Análisis</button>
       <button class="nav" data-view="patrimonio">Patrimonio</button>
-      <button class="nav" data-view="inversion">Inversión</button>
       <button class="nav" data-view="reporte">Reporte</button>
       <div class="spacer"></div>
       <button class="nav" id="btnRecargar">Actualizar</button>
@@ -199,6 +198,12 @@
       <!-- RESUMEN -->
       <section id="view-resumen" class="hidden">
         <div class="topbar"><div><h1>Resumen</h1><div class="sub">Cuánto has gastado mes a mes</div></div></div>
+        <div class="panel">
+          <div class="topbar"><div><h2>Cómo pagaste</h2><div class="sub">Gastos por forma de pago</div></div><div class="controls"><select id="resMes" aria-label="Periodo del desglose de gastos"></select></div></div>
+          <div class="kpis" id="resPagos"></div>
+          <div class="tbl-wrap"><table id="resCuentas"></table></div>
+          <div class="footnote">Tarjetas incluye crédito y débito. Las transferencias y las cuentas sin clasificar se muestran por separado. Los pagos de tarjeta no se vuelven a contar como gastos.</div>
+        </div>
         <div class="kpis" id="resKpis"></div>
         <div class="panel"><h2>Gasto total por mes</h2><div class="chart" id="chart"></div></div>
       </section>
@@ -212,14 +217,6 @@
           <div class="panel"><h2>Detalle por lugar</h2><div id="patLista"></div></div>
         </div>
         <div class="footnote">Patrimonio actualizado manualmente: suma de los montos de la pestaña Posicion. Los gastos, ingresos y pagos registrados no modifican estos saldos.</div>
-      </section>
-
-      <!-- INVERSIÓN -->
-      <section id="view-inversion" class="hidden">
-        <div class="topbar"><div><h1>Inversión</h1><div class="sub">Cuánto necesitas ganar para invertir tu meta</div></div></div>
-        <div class="kpis" id="invKpis"></div>
-        <div class="panel"><h2>¿Vas alcanzando?</h2><div id="invDetalle"></div></div>
-        <div class="footnote">Esto es solo el cálculo de tu flujo (gasto + meta de inversión = ingreso necesario). No es recomendación de inversión: en qué activo meterlo lo decides tú.</div>
       </section>
 
       <!-- ANÁLISIS -->
@@ -282,7 +279,6 @@
 
 <script>
   const ENDPOINT = "https://script.google.com/macros/s/AKfycbwR9QnCagqVkxsLkg_ntojXqd9FLDzbvmtCp1htATCTRvxyZ19W1BphkEXzdz_MOJwa/exec";
-  const META_INVERSION_DEFAULT = 100000;
 
   let claveEnMemoria=null, DATOS=null, MES_SEL=null;
   const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -312,7 +308,6 @@
   function getConfigNum(prefijo,def){const h=DATOS.Config;if(h)for(const r of h){if(norm(r[0]).toLowerCase().indexOf(prefijo)===0)return num(r[1]);}return def||0;}
   const getPresupuesto=()=>getConfigNum('presupuesto mensual total',0);
   const getMeta=()=>getConfigNum('meta anual',0);
-  const getMetaInversion=()=>{const v=getConfigNum('meta de inversi',0);return v>0?v:META_INVERSION_DEFAULT;};
 
   function pagosTarjeta(card,since){const st=tparse(since);return getMovs().filter(m=>esTipo(m,'pago')&&m.cuenta===card).filter(m=>{if(st===null)return true;const ft=tparse(m.fecha);return ft===null?true:ft>st;}).reduce((a,m)=>a+m.monto,0);}
   function gastosTarjetaDespues(card,since){const st=tparse(since);if(st===null)return 0;return getMovs().filter(m=>esTipo(m,'gasto')&&m.cuenta===card).filter(m=>{const ft=tparse(m.fecha);return ft===null?false:ft>st;}).reduce((a,m)=>a+m.monto,0);}
@@ -421,7 +416,41 @@
       b+=`<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="3" fill="${fill}"/><text class="vl" x="${x+bw/2}" y="${y-6}" text-anchor="middle">${fmtK(d.value)}</text><text class="ax" x="${x+bw/2}" y="${H-padB+16}" text-anchor="middle">${d.label}</text>`;});
     return `<svg viewBox="0 0 ${W} ${H}" role="img">${g}${b}</svg>`;
   }
+  const textoSeguro=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function desglosePagos(periodo){
+    const normal=v=>norm(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    const tipos=new Map(getTarjetas().map(t=>[normal(t.nombre),normal(t.tipo)]));
+    const grupos={Tarjetas:0,Efectivo:0,Transferencias:0,'Sin clasificar':0};
+    const cuentas=new Map();
+    getMovs().filter(m=>esTipo(m,'gasto')&&(periodo==='todos'||m.mes===periodo)).forEach(m=>{
+      const nombre=normal(m.cuenta),tipo=tipos.get(nombre)||'';
+      const grupo=/efectivo|caja/.test(nombre)||tipo==='efectivo'?'Efectivo':
+        /transferencia/.test(nombre)?'Transferencias':
+        /credito|debito/.test(tipo)||['santander fiesta rewards'].includes(nombre)?'Tarjetas':'Sin clasificar';
+      grupos[grupo]+=m.monto;
+      const key=m.cuenta||'Sin cuenta';const registro=cuentas.get(key)||{cuenta:key,grupo,total:0};
+      registro.total+=m.monto;cuentas.set(key,registro);
+    });
+    return {grupos,cuentas:[...cuentas.values()].sort((a,b)=>b.total-a.total),total:Object.values(grupos).reduce((a,b)=>a+b,0)};
+  }
+  function renderPagosResumen(){
+    const periodo=$('resMes').value;const {grupos,cuentas,total}=desglosePagos(periodo);
+    const nombres=['Tarjetas','Efectivo',...['Transferencias','Sin clasificar'].filter(n=>grupos[n]!==0)];
+    $('resPagos').innerHTML=[...nombres,'Total del periodo'].map(n=>{
+      const monto=n==='Total del periodo'?total:grupos[n];
+      const detalle=n==='Total del periodo'?(periodo==='todos'?'Todo el historial':labelMes(periodo)):(total>0?(monto/total*100).toFixed(1)+'% del gasto':'Sin gastos');
+      return `<div class="kpi"><div class="k-label">${n}</div><div class="k-val">${fmt.format(monto)}</div><div class="k-sub">${detalle}</div></div>`;
+    }).join('');
+    $('resCuentas').innerHTML='<thead><tr><th>Cuenta / tarjeta</th><th>Forma de pago</th><th class="r">Gastado</th></tr></thead><tbody>'+
+      (cuentas.length?cuentas.map(c=>`<tr><td>${textoSeguro(c.cuenta)}</td><td>${c.grupo}</td><td class="r mono">${fmt.format(c.total)}</td></tr>`).join(''):'<tr><td colspan="3" class="empty">Sin gastos en este periodo.</td></tr>')+'</tbody>';
+  }
   function renderResumen(){
+    const selector=$('resMes'), previo=selector.value;
+    const meses=[...new Set([fechaHoy().slice(0,7),...getMovs().map(m=>m.mes).filter(m=>/^\d{4}-\d{2}$/.test(m))])].sort().reverse();
+    opciones(selector,meses);[...selector.options].forEach(o=>o.textContent=labelMes(o.value));
+    const todos=document.createElement('option');todos.value='todos';todos.textContent='Todo el historial';selector.appendChild(todos);
+    selector.value=previo==='todos'||meses.includes(previo)?previo:fechaHoy().slice(0,7);
+    renderPagosResumen();
     const tot=totalesPorMes();const cur=tot.length?tot[tot.length-1].ym:null;
     const data=tot.map(d=>({label:labelCorto(d.ym),value:d.value,current:d.ym===cur}));
     const completos=tot.slice(0,Math.max(0,tot.length-1));const base=completos.length?completos:tot;
@@ -449,39 +478,6 @@
       $('patLista').innerHTML=`<table><thead><tr><th>Lugar</th><th>Tipo</th><th class="r">Monto</th></tr></thead><tbody>`+
         ord.map(p=>`<tr><td>${p.lugar}</td><td><span class="tag">${p.tipo||'—'}</span></td><td class="r mono">${fmt.format(p.ajustado)}</td></tr>`).join('')+`</tbody></table>`;
     } else {$('patDist').innerHTML=`<div class="empty">Captura montos en la pestaña Posicion.</div>`;$('patLista').innerHTML='';}
-  }
-
-  // ===== INVERSIÓN =====
-  function renderInversion(){
-    const tot=totalesPorMes();const completos=tot.slice(0,Math.max(0,tot.length-1));const base=completos.length?completos:tot;
-    const gastoProm=base.length?base.reduce((a,d)=>a+d.value,0)/base.length:0;
-    const metaInv=getMetaInversion();
-    const ingNec=gastoProm+metaInv;
-    // ingreso promedio de meses con ingreso registrado
-    const ing={};getMovs().filter(m=>esTipo(m,'ingreso')).forEach(m=>{if(/^\d{4}-\d{2}$/.test(m.mes))ing[m.mes]=(ing[m.mes]||0)+m.monto;});
-    const ingMeses=Object.values(ing);const ingProm=ingMeses.length?ingMeses.reduce((a,b)=>a+b,0)/ingMeses.length:0;
-    const cur=mesActual();const ahorro=ingresoMes(cur)-gastoMes(cur);
-
-    $('invKpis').innerHTML=
-      `<div class="kpi"><div class="k-label">Gasto promedio</div><div class="k-val">${fmt.format(gastoProm)}</div><div class="k-sub">al mes</div></div>`+
-      `<div class="kpi"><div class="k-label">Meta de inversión</div><div class="k-val">${fmt.format(metaInv)}</div><div class="k-sub">al mes (edítala en Config)</div></div>`+
-      `<div class="kpi"><div class="k-label">Ingreso necesario</div><div class="k-val" style="color:var(--accent)">${fmt.format(ingNec)}</div><div class="k-sub">gasto + meta</div></div>`+
-      `<div class="kpi"><div class="k-label">Ingreso registrado</div><div class="k-val">${ingProm>0?fmt.format(ingProm):'—'}</div><div class="k-sub">${ingProm>0?'promedio mensual':'aún sin ingresos'}</div></div>`;
-
-    const gap=ingNec-ingProm;
-    let detalle='';
-    if(ingProm>0){
-      const p=Math.min(100,Math.round(ingProm/ingNec*100));
-      const col=ingProm>=ingNec?'var(--green)':'var(--accent)';
-      detalle=`<div class="bar-row"><div class="bar-head"><span>Cubres del ingreso necesario</span><span class="amt">${Math.round(ingProm/ingNec*100)}%</span></div><div class="bar-track"><div class="bar-fill" style="width:${p}%;background:${col}"></div></div></div>`;
-      detalle+= gap>0
-        ? `<div class="note" style="margin-top:14px">Para invertir <b>${fmt.format(metaInv)}</b> al mes sin tocar tu nivel de vida, te faltan <b>${fmt.format(gap)}</b> de ingreso mensual.</div>`
-        : `<div class="note" style="margin-top:14px">Ya cubres el ingreso necesario: te sobran <b>${fmt.format(-gap)}</b> al mes por encima de tu meta de inversión.</div>`;
-    } else {
-      detalle=`<div class="note">Cuando registres ingresos (renglones con <b>Tipo = Ingreso</b>), aquí verás cuánto te falta para llegar a los <b>${fmt.format(ingNec)}</b> mensuales que necesitas.</div>`;
-    }
-    detalle+=`<div class="note">Ahorro de ${labelMes(cur)}: <b style="color:${ahorro>=0?'var(--green)':'var(--red)'}">${fmt.format(ahorro)}</b> (ingresos ${fmt.format(ingresoMes(cur))} − gastos ${fmt.format(gastoMes(cur))}).</div>`;
-    $('invDetalle').innerHTML=detalle;
   }
 
   // ===== ANÁLISIS =====
@@ -588,11 +584,11 @@
   function renderTodo(){
     try{ poblarSelector(); }catch(e){ console.error('Error en poblarSelector:',e); }
     try{ initReporteFechas(); }catch(e){ console.error('Error en initReporteFechas:',e); }
-    [renderGastos,renderResumen,renderPatrimonio,renderInversion,renderAnalisis,renderReporte].forEach(function(fn){
+    [renderGastos,renderResumen,renderPatrimonio,renderAnalisis,renderReporte].forEach(function(fn){
       try{ fn(); }catch(e){ console.error('Error en '+fn.name+':',e); }
     });
   }
-  function showView(v){['gastos','resumen','patrimonio','inversion','analisis','reporte'].forEach(n=>$('view-'+n).classList.toggle('hidden',n!==v));document.querySelectorAll('.nav[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));}
+  function showView(v){['gastos','resumen','patrimonio','analisis','reporte'].forEach(n=>$('view-'+n).classList.toggle('hidden',n!==v));document.querySelectorAll('.nav[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));}
 
   function setStatus(t,tipo){$('status').textContent=t||'';$('status').className='status'+(tipo?' '+tipo:'');}
   async function pedirDatos(frase){const r=await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({clave:frase})});return r.json();}
@@ -657,6 +653,7 @@
   $('btnSalir').addEventListener('click',salir);
   $('btnRecargar').addEventListener('click',recargar);
   $('selMes').addEventListener('change',e=>{MES_SEL=e.target.value;renderGastos();try{renderAnalisis();}catch(err){}});
+  $('resMes').addEventListener('change',renderPagosResumen);
   $('btnRepGen').addEventListener('click',renderReporte);
   $('btnRepMov').addEventListener('click',descargarMovimientos);
   $('btnRepRes').addEventListener('click',descargarResumen);
